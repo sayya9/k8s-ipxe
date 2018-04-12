@@ -1,0 +1,147 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  namespace: {{ .Release.Namespace }}
+  name: {{ template "fullname" . }}-pxe-cm
+  labels:
+{{ include "labels" . | indent 4 }}
+data:
+  ks.cfg: |
+    # Use network installation
+    url --url=http://linux.cs.nctu.edu.tw/CentOS/7/os/x86_64
+
+    # Configures additional yum repositories
+    repo --name=epel --baseurl=http://download.fedoraproject.org/pub/epel/7/x86_64
+    repo --name=elrepo-kernel --baseurl=http://elrepo.org/linux/kernel/el7/x86_64
+    repo --name=updates --mirrorlist=http://mirrorlist.centos.org/?release=$releasever&arch=$basearch&repo=updates
+
+    # System authorization information
+    auth --enableshadow --passalgo=sha512
+
+    # Install OS instead of upgrade
+    install
+
+    # Firewall configuration
+    firewall --disabled
+
+    # Use text mode install
+    text
+
+    # Keyboard layouts
+    keyboard --vckeymap=us --xlayouts='us'
+
+    # System language
+    lang en_US.UTF-8
+
+    # System timezone
+    timezone --utc Asia/Taipei
+
+    # Root password
+    rootpw --iscrypted $6$gFttkfSSlInBzUI.$PbxhDyd.VUT1Gaw8/xoR6RQrtHIG0Vzj.s7VPtb3L9xX3Ul/Suek4I64uZZBFDJoqELCSbVeb4hE7LmxQjS9q/
+
+    # Initial user
+    user --name=inu --groups=wheel,root --password=$6$gFttkfSSlInBzUI.$PbxhDyd.VUT1Gaw8/xoR6RQrtHIG0Vzj.s7VPtb3L9xX3Ul/Suek4I64uZZBFDJoqELCSbVeb4hE7LmxQjS9q/ --iscrypted
+    user --name=andrew --groups=wheel,root --password=$6$2Z8XHurjiNyv0zJR$9IJuRfnjlWMHvNIzPjYhGewGnClDAsVKQFtYUNkH1/rMJCyy71N0g8E57ReE5DP7SVd8EnNj70N91SBxkX.i.0 --iscrypted
+
+    # Reboot afer installing
+    reboot
+
+    %packages
+    @core --nodefaults
+    -biosdevname
+    kernel-ml
+    bash-completion
+    ansible
+    xauth
+    vim
+    tmux
+    bc
+    git
+    %end
+
+    %pre
+    chvt 8
+    (
+        # Check IP formation function
+        CheckIpValidation() {
+            if [[ "$1" =~ ^([0-9]{1,3})[.]([0-9]{1,3})[.]([0-9]{1,3})[.]([0-9]{1,3})$ ]]; then
+                for (( i=1; i<${#BASH_REMATCH[@]}; ++i )); do
+                    (( ${BASH_REMATCH[$i]} <= 255 )) || return 1
+                done
+            else
+                return 1
+            fi
+        }
+
+        # Set hostname and network configuratio
+        echo "################################"
+        echo "# Please keyin blow question ! #"
+        echo "################################"
+        read -p "Hostname: " hostname
+
+        for i in ip netmask gateway nameserver; do
+            echo -n "${i^^}: "
+            read $i
+            while ! eval CheckIpValidation \$$i; do
+                read -p "Invalid IP. Re-enter: " $i
+            done
+        done
+        echo "network --bootproto=static --device=eth0 --hostname=$hostname --ip=$ip --netmask=$netmask --gateway=$gateway --nameserver=${nameserver},8.8.8.8" > /tmp/network
+    ) < /dev/tty8 > /dev/tty8 2>&1
+
+    # Go back to tty1
+    chvt 1
+    exec < /dev/tty1 > /dev/tty1
+
+    # Create disk partitioning information
+    if [ -b /dev/vda ]; then
+        dd if=/dev/zero of=/dev/vda bs=512 count=1
+        echo 'bootloader --location=mbr --driveorder=vda --append=" crashkernel=auto net.ifnames=0 biosdevname=0"' > /tmp/diskinfo
+        echo "clearpart --drives=vda --all" >> /tmp/diskinfo
+        echo "part pv.008002 --ondisk=/dev/vda --grow --size=1" >> /tmp/diskinfo
+        echo "volgroup rootvg --pesize=4096 pv.008002" >> /tmp/diskinfo
+        echo "logvol / --fstype=xfs --name=rootlv --vgname=rootvg --grow --size=1024 --maxsize=51200" >> /tmp/diskinfo
+        echo "part /boot --fstype=xfs --size=512 --ondisk=vda" >> /tmp/diskinfo
+
+    else
+        dd if=/dev/zero of=/dev/sda bs=512 count=1
+        echo 'bootloader --location=mbr --driveorder=sda --append=" crashkernel=auto net.ifnames=0 biosdevname=0"' > /tmp/diskinfo
+        echo "clearpart --drives=sda --all" >> /tmp/diskinfo
+        echo "part pv.008002 --ondisk=/dev/sda --grow --size=1" >> /tmp/diskinfo
+        echo "volgroup rootvg --pesize=4096 pv.008002" >> /tmp/diskinfo
+        echo "logvol / --fstype=xfs --name=rootlv --vgname=rootvg --grow --size=1024 --maxsize=51200" >> /tmp/diskinfo
+        echo "part /boot --fstype=xfs --size=512 --ondisk=sda" >> /tmp/diskinfo
+    fi
+    %end
+    %include /tmp/network
+    %include /tmp/diskinfo
+
+    %post --log=/root/ks-post.log
+    # Disable reverse dns lookups in ssh
+    sed -i '/UseDNS/s/.*/UseDNS no/' /etc/ssh/sshd_config
+
+    # Disable SELINUX
+    sed -i -e 's/\(^SELINUX=\).*$/\1disabled/' /etc/selinux/config
+
+    # Config sudo
+    echo '%wheel ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/wheel
+
+    # Install public key for users
+    mkdir -m 700 /home/andrew/.ssh
+    cat >> /home/andrew/.ssh/authorized_keys << EOF
+    ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDVk6YkkUbFT3CGD1GifBNNkBN7twmsHcgEGhfdvS48Pmo/jqunNGs9vqVnDzN9vT1j9iheo/vnoKV5t/qe/LzGiYUAzTBnNY8W538Kc3ZlQWaPd/nbJWiVCuNgSH9+KRKIg4LOZLZGuvEbw7hqmzGc3IzX+VQiJv2aMzkXRL1vgBCMB1ZKNOIkU9KqiSl299808LvMWVhq3kiikWAkY1O+3Ue7Psg7FnXM6Lh90ijCD0o04nwi0GM1PVmLcmYOjxNIq81+1sEebUOmYe4tjp3h/+BPAaHCHQkGugcRQseLEXrWff7pysuHlZrLnWbbGo/ODIsH6AEuWrqO5j7aNnE9 andrew@Andrew-MacBook-Pro
+    EOF
+    chmod 600 /home/andrew/.ssh/authorized_keys
+    chown -R andrew.andrew /home/andrew/.ssh
+
+    # Create user profiles
+    git clone https://github.com/sayya9/profiles.git /tmp/profiles
+    su - andrew -c 'rsync -avz --exclude=".git" /tmp/profiles/ /home/andrew/'
+    %end
+
+  boot.ipxe: |
+    #!ipxe
+    set base-url http://linux.cs.nctu.edu.tw/CentOS/7/os/x86_64
+    kernel ${base-url}/images/pxeboot/vmlinuz initrd=initrd.img ks=http://{{ .Values.global.dhcpServerIP }}/ks.cfg net.ifnames=0 biosdevname=0 ksdevice=eth0
+    initrd ${base-url}/images/pxeboot/initrd.img
+    boot

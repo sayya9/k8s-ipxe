@@ -1,0 +1,71 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  namespace: {{ .Release.Namespace }}
+  name: {{ template "fullname" . }}
+  labels:
+{{ include "labels" . | indent 4 }}
+spec:
+  replicas: {{ .Values.global.replicaCount }}
+  template:
+    metadata:
+      labels:
+{{ include "labels.master" . | indent 8 }}
+    spec:
+      hostNetwork: true
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.global.image.pullPolicy }}
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+          ports:
+            - name: dns-udp
+              containerPort: 53
+              protocol: UDP
+            - name: dns-tcp
+              containerPort: 53
+              protocol: TCP
+          volumeMounts:
+            - name: tz-conf
+              mountPath: /etc/localtime
+            - name: main-conf
+              mountPath: /etc/dnsmasq.conf
+              subPath: dnsmasq.conf
+            - name: hosts
+              mountPath: /etc/hosts
+              subPath: hosts
+    {{- if .Values.nginx.enabled }}
+            - name: pxe-conf
+              mountPath: /etc/dnsmasq.d/pxe.conf
+              subPath: pxe.conf
+            - name: pxe-data
+              mountPath: {{ .Values.pxe.tftpDir }}
+    {{- end }}
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+      volumes:
+        - name: tz-conf
+          hostPath:
+            path: /etc/localtime
+        - name: main-conf
+          configMap:
+            name: {{ template "fullname" . }}-main-cm
+        - name: hosts
+          configMap:
+            name: {{ template "fullname" . }}-main-cm
+    {{- if .Values.nginx.enabled }}
+        - name: pxe-conf
+          configMap:
+            name: {{ template "fullname" . }}-pxe-cm
+        - name: pxe-data
+          persistentVolumeClaim:
+            claimName: {{ .Chart.Name }}-pxe
+    {{- end }}
+      dnsPolicy: Default
+    {{- if .Values.global.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.global.nodeSelector | indent 8 }}
+    {{- end }}

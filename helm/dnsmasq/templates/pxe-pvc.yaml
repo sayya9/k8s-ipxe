@@ -1,0 +1,20 @@
+{{- if .Values.nginx.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  namespace: {{ .Release.Namespace }}
+  name: {{ .Chart.Name }}-pxe
+  labels:
+{{ include "labels" . | indent 4 }}
+  annotations:
+    {{- if .Values.volumes.pxeData.keep }}
+    "helm.sh/resource-policy": keep
+    {{- end}}
+spec:
+  accessModes:
+  - {{ .Values.volumes.pxeData.accessModes }}
+  resources:
+    requests:
+      storage: {{ .Values.volumes.pxeData.size }}
+  storageClassName: {{ .Values.global.storageClassName }}
+{{- end }}

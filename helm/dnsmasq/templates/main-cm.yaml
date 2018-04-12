@@ -1,0 +1,36 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  namespace: {{ .Release.Namespace }}
+  name: {{ template "fullname" . }}-main-cm
+  labels:
+{{ include "labels" . | indent 4 }}
+data:
+  dnsmasq.conf: |
+    addn-hosts=/etc/hosts
+    expand-hosts
+    domain=kube.local
+    log-queries
+    log-dhcp
+    log-facility=/var/log/dnsmasq.log
+    dhcp-leasefile=/tmp/dnsmasq.leases
+    interface={{ .Values.dnsmasqConf.interface }}
+    bind-interfaces
+    dhcp-option=6,{{ .Values.global.dhcpServerIP }},8.8.8.8
+    dhcp-range={{ .Values.dnsmasqConf.dhcpRangeStart }},{{ .Values.dnsmasqConf.dhcpRangeEnd }},12h
+    dhcp-option=1,{{ .Values.dnsmasqConf.netmask }}
+    dhcp-option=3,{{ .Values.dnsmasqConf.gateway }}
+    dhcp-option=28,{{ .Values.dnsmasqConf.broadcast }}
+    conf-dir=/etc/dnsmasq.d
+  hosts: |
+    192.168.2.111 tp-ceph-node01
+    192.168.2.112 tp-ceph-node02
+    192.168.2.113 tp-ceph-node03
+    192.168.2.21 tp-lab01
+    192.168.2.22 tp-lab02
+    192.168.2.23 tp-lab03
+    192.168.1.1 rv325
+    192.168.2.2 docker
+    192.168.2.3 tp-master01
+    192.168.2.4 tp-node01
+    192.168.2.5 tp-node02

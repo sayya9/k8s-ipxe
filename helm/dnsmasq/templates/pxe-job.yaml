@@ -1,0 +1,38 @@
+{{- if .Values.nginx.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  namespace: {{ .Release.Namespace }}
+  name: {{ .Chart.Name }}-pxe-init-{{ .Release.Name }}
+spec:
+  template:
+    metadata:
+      name: {{ .Chart.Name }}-pxe-init-{{ .Release.Name }}
+    spec:
+      imagePullSecrets:
+        - name: grandsys
+      containers:
+        - name: init-pxe
+          image: ubuntu:16.04
+          imagePullPolicy: {{ .Values.global.image.pullPolicy }}
+          command: ['bash', '-ex', '/root/build-pxe-env.sh']
+          volumeMounts:
+            - name: tz-conf
+              mountPath: /etc/localtime
+            - name: pxe-conf
+              mountPath:  /root/build-pxe-env.sh
+              subPath: build-pxe-env.sh
+            - name: pxe-data
+              mountPath: {{ .Values.pxe.tftpDir }}
+      volumes:
+        - name: tz-conf
+          hostPath:
+            path: /etc/localtime
+        - name: pxe-conf
+          configMap:
+            name: {{ template "fullname" . }}-pxe-cm
+        - name: pxe-data
+          persistentVolumeClaim:
+            claimName: {{ .Chart.Name }}-pxe
+      restartPolicy: OnFailure
+{{- end }}

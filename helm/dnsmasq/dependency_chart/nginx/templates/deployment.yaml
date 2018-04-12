@@ -1,0 +1,54 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  namespace: {{ .Release.Namespace }}
+  name: {{ template "fullname" . }}
+  labels:
+{{ include "labels" . | indent 4 }}
+spec:
+  replicas: {{ .Values.global.replicaCount }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/cm.yaml") . | sha256sum }}
+      labels:
+{{ include "labels.master" . | indent 8 }}
+    spec:
+      hostNetwork: true
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.global.image.pullPolicy }}
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+          ports:
+            - name: http-tcp
+              containerPort: 80
+              protocol: TCP
+          volumeMounts:
+            - name: tz-conf
+              mountPath: /etc/localtime
+            - name: ks-conf
+              mountPath: /usr/share/nginx/html/ks.cfg
+              subPath: ks.cfg
+            - name: boot-ipxe-conf
+              mountPath: /usr/share/nginx/html/boot.ipxe
+              subPath: boot.ipxe
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+      volumes:
+        - name: tz-conf
+          hostPath:
+            path: /etc/localtime
+        - name: ks-conf
+          configMap:
+            name: {{ template "fullname" . }}-pxe-cm
+        - name: boot-ipxe-conf
+          configMap:
+            name: {{ template "fullname" . }}-pxe-cm
+    {{- if .Values.global.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.global.nodeSelector | indent 8 }}
+    {{- end }}

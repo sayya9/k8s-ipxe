@@ -1,0 +1,31 @@
+global:
+  image:
+    pullPolicy: Always
+  volumes:
+    keep: false
+  storageClassName: cephfs
+  dhcpServerIP: 192.168.2.3
+  replicaCount: 1
+  nodeSelector:
+    node-role.kubernetes.io/master: 'true'
+image:
+  repository: andyshinn/dnsmasq
+  tag: 2.78
+  pullPolicy: Always
+dnsmasqConf:
+  interface: eth0
+  dhcpRangeStart: 192.168.2.131
+  dhcpRangeEnd: 192.168.2.150
+  netmask: 255.255.255.0
+  gateway: 192.168.2.1
+  broadcast: 192.168.2.255
+pxe:
+  tftpDir: /var/tftpboot
+volumes:
+  pxeData:
+    storageClassName: cephfs
+    size: 1Gi
+    accessModes: ReadWriteMany
+    keep: false
+nginx:
+  enabled: false # if you need iPXE server, the option must be true to use nginx

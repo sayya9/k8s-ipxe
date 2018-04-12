@@ -1,0 +1,53 @@
+{{- if .Values.nginx.enabled }}
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  namespace: {{ .Release.Namespace }}
+  name: {{ template "fullname" . }}-pxe-cm
+  labels:
+{{ include "labels" . | indent 4 }}
+data:
+  pxe.conf: |
+    enable-tftp
+    tftp-root={{ .Values.pxe.tftpDir }}
+    dhcp-boot=pxelinux.0
+  build-pxe-env.sh: |
+    # Update index
+    sed -i 's/archive.ubuntu.com/tw.archive.ubuntu.com/g' /etc/apt/sources.list
+    apt update
+    apt install -y wget p7zip-full p7zip-rar
+
+    # Download pxelinux.0
+    wget -nc -P /root https://www.kernel.org/pub/linux/utils/boot/syslinux/syslinux-6.03.tar.gz || rm -f /root/syslinux-6.03.tar.gz
+    cd /root
+    tar xzf syslinux-6.03.tar.gz
+
+    # Copy boot menu necessary files
+    cp -f syslinux-6.03/bios/com32/elflink/ldlinux/ldlinux.c32 /var/tftpboot
+    cp -f syslinux-6.03/bios/core/pxelinux.0 /var/tftpboot
+    cp -f syslinux-6.03/bios/com32/menu/menu.c32 /var/tftpboot
+    cp -f syslinux-6.03/bios/com32/libutil/libutil.c32 /var/tftpboot
+
+    # Download ipxe.iso to get ipxe.krn
+    wget -nc -P /root http://boot.ipxe.org/ipxe.iso || rm -f /root/ipxe.iso
+    7z x ipxe.iso IPXE.KRN
+    mv -f IPXE.KRN /var/tftpboot/ipxe.krn
+
+    # Create pxelinux.cfg/default to provide PXE menu
+    mkdir -p /var/tftpboot/pxelinux.cfg
+    cat > /var/tftpboot/pxelinux.cfg/default << EOF
+    default menu.c32
+    timeout 300
+    prompt 0
+    ONTIMEOUT local
+    LABEL local
+    MENU TITLE Grandsys
+    MENU LABEL Boot local hard drive
+    LOCALBOOT 0
+
+    LABEL CentOS
+    MENU LABEL Install CentOS 7
+    KERNEL ipxe.krn
+    APPEND dhcp && chain http://{{ .Values.global.dhcpServerIP }}/boot.ipxe
+    EOF
+{{- end }}

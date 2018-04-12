@@ -1,0 +1,5 @@
+dependencies:
+- name: nginx
+  version: "1.13.8"
+  repository: "file://dependency_chart/nginx/"
+  condition: nginx.enabled
