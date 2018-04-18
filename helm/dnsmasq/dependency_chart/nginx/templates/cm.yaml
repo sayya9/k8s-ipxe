@@ -51,12 +51,18 @@ data:
     -biosdevname
     kernel-ml
     bash-completion
-    ansible
     xauth
     vim
+
+    # For ansible
+    git
+    ansible
+    python-pip
+    python-netaddr
+    
+    # For tmux
     tmux
     bc
-    git
     %end
 
     %pre
@@ -137,6 +143,10 @@ data:
     # Create user profiles
     git clone https://github.com/sayya9/profiles.git /tmp/profiles
     su - andrew -c 'rsync -avz --exclude=".git" /tmp/profiles/ /home/andrew/'
+
+    # Install ansible essential python module
+    pip install --upgrade pip
+    pip install --upgrade Jinja2
     %end
 
   boot.ipxe: |
