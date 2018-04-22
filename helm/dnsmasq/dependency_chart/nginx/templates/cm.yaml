@@ -53,6 +53,7 @@ data:
     bash-completion
     xauth
     vim
+    lsof
 
     # For ansible
     git
