@@ -60,6 +60,9 @@ data:
     ansible
     python-pip
     python-netaddr
+
+    # For docker_image module
+    python-docker-py
     
     # For tmux
     tmux
@@ -146,8 +149,13 @@ data:
     su - andrew -c 'rsync -avz --exclude=".git" /tmp/profiles/ /home/andrew/'
 
     # Install ansible essential python module
-    pip install --upgrade pip
-    pip install --upgrade Jinja2
+    # kubespray
+    pip install -U pip Jinja2
+
+    # For docker_image module
+    # Issue: https://github.com/certbot/certbot/issues/5104
+    pip install -U -I enum34
+    pip install -U requests urllib3 pyOpenSSL
     %end
 
   boot.ipxe: |
