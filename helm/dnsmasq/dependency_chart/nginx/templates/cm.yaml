@@ -170,8 +170,7 @@ data:
 
     # For docker_image module
     # Issue: https://github.com/certbot/certbot/issues/5104
-    pip install -U -I enum34
-    pip install -U requests urllib3 pyOpenSSL
+    pip install -U -I enum34 requests urllib3 pyOpenSSL
 
     # Create python link
     ln -s /usr/bin/python /usr/local/bin/python
