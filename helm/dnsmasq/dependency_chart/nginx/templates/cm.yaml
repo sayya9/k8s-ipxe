@@ -113,15 +113,30 @@ data:
         echo "volgroup rootvg --pesize=4096 pv.008002" >> /tmp/diskinfo
         echo "logvol / --fstype=xfs --name=rootlv --vgname=rootvg --grow --size=1024 --maxsize=51200" >> /tmp/diskinfo
         echo "part /boot --fstype=xfs --size=512 --ondisk=vda" >> /tmp/diskinfo
-
     else
-        dd if=/dev/zero of=/dev/sda bs=512 count=1
-        echo 'bootloader --location=mbr --driveorder=sda --append=" crashkernel=auto net.ifnames=0 biosdevname=0"' > /tmp/diskinfo
-        echo "clearpart --drives=sda --all" >> /tmp/diskinfo
-        echo "part pv.008002 --ondisk=/dev/sda --grow --size=1" >> /tmp/diskinfo
-        echo "volgroup rootvg --pesize=4096 pv.008002" >> /tmp/diskinfo
-        echo "logvol / --fstype=xfs --name=rootlv --vgname=rootvg --grow --size=1024 --maxsize=51200" >> /tmp/diskinfo
-        echo "part /boot --fstype=xfs --size=512 --ondisk=sda" >> /tmp/diskinfo
+      # Create soft raid for ceph
+      if [ -b /dev/sda  ] && [ -b /dev/sdb ] && [ -b /dev/sdc ] && [ -b /dev/sdd ]; then
+          dd if=/dev/zero of=/dev/sda bs=512 count=1
+          dd if=/dev/zero of=/dev/sdb bs=512 count=1
+          echo 'bootloader --location=mbr --driveorder=sda,sdb --append=" crashkernel=auto net.ifnames=0 biosdevname=0"' > /tmp/diskinfo
+          echo "clearpart --drives=sda,sdb --all" >> /tmp/diskinfo
+          echo "part raid.01 --fstype=mdmember --ondisk=sda --size=1024" >> /tmp/diskinfo
+          echo "part raid.02 --fstype=mdmember --ondisk=sdb --size=1024" >> /tmp/diskinfo
+          echo "part raid.11 --fstype=mdmember --ondisk=sda --size=1 --grow" >> /tmp/diskinfo
+          echo "part raid.12 --fstype=mdmember --ondisk=sdb --size=1 --grow" >> /tmp/diskinfo
+          echo "raid /boot --device=boot --fstype=xfs --level=RAID1 raid.01 raid.02" >> /tmp/diskinfo
+          echo "raid pv.01 --device=root --fstype=lvmpv --level=RAID1 raid.11 raid.12" >> /tmp/diskinfo
+          echo "volgroup rootvg --pesize=4096 pv.01" >> /tmp/diskinfo
+          echo "logvol / --fstype=xfs --name=rootlv --vgname=rootvg --grow --size=1024 --maxsize=51200" >> /tmp/diskinfo
+      else
+          dd if=/dev/zero of=/dev/sda bs=512 count=1
+          echo 'bootloader --location=mbr --driveorder=sda --append=" crashkernel=auto net.ifnames=0 biosdevname=0"' > /tmp/diskinfo
+          echo "clearpart --drives=sda --all" >> /tmp/diskinfo
+          echo "part pv.008002 --ondisk=/dev/sda --grow --size=1" >> /tmp/diskinfo
+          echo "volgroup rootvg --pesize=4096 pv.008002" >> /tmp/diskinfo
+          echo "logvol / --fstype=xfs --name=rootlv --vgname=rootvg --grow --size=1024 --maxsize=51200" >> /tmp/diskinfo
+          echo "part /boot --fstype=xfs --size=512 --ondisk=sda" >> /tmp/diskinfo
+      fi
     fi
     %end
     %include /tmp/network
